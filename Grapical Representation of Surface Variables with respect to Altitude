@@ -1,0 +1,134 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+
+# ------------------ SAMPLE DATA ------------------
+
+from google.colab import files
+import pandas as pd
+
+# Upload CSV file
+uploaded = files.upload()
+
+# Read the uploaded CSV into a DataFrame
+filename = list(uploaded.keys())[0]
+df = pd.read_csv(filename)
+
+# Show a quick preview of your data
+print("Data loaded successfully! Here's a preview:")
+display(df.head())
+
+# Ensure expected columns are present
+required_cols = {'DSM', 'NDVI', 'LST', 'SMI'}
+if not required_cols.issubset(df.columns):
+    missing = required_cols - set(df.columns)
+    raise ValueError(f"Missing columns in uploaded CSV: {missing}")
+
+# Generate x-axis range (e.g., for plotting)
+x = range(len(df))
+
+# Optional: View summary stats
+df.describe()
+
+# ------------------ PLOTTING FUNCTION ------------------
+def plot_transect(change=None):
+    clear_output(wait=True)
+    fig, ax1 = plt.subplots(figsize=(18, 6))
+
+    # DSM Area Plot
+    ax1.fill_between(x, df['DSM'], color=area_color.value, alpha=area_alpha.value, label='DSM')
+    ax1.set_ylabel('Elevation (m))', color=dsm_axis_color.value, fontsize=label_size.value)
+    ax1.tick_params(axis='y', labelcolor=dsm_axis_color.value)
+
+    # NDVI Axis
+    ax2 = ax1.twinx()
+    ax2.plot(x, df['NDVI'], color=ndvi_color.value, label='NDVI')
+    ax2.set_ylabel('NDVI', color=ndvi_axis_color.value, fontsize=label_size.value)
+    ax2.tick_params(axis='y', labelcolor=ndvi_axis_color.value)
+
+    # LST Axis
+    ax3 = ax1.twinx()
+    ax3.spines['right'].set_position(('outward', 60))
+    ax3.plot(x, df['LST'], color=lst_color.value, label='LST')
+    ax3.set_ylabel('LST (°C)', color=lst_axis_color.value, fontsize=label_size.value)
+    ax3.tick_params(axis='y', labelcolor=lst_axis_color.value)
+
+    # SMI Axis
+    ax4 = ax1.twinx()
+    ax4.spines['right'].set_position(('outward', 120))
+    ax4.plot(x, df['SMI'], color=smi_color.value, label='SMI')
+    ax4.set_ylabel('SMI', color=smi_axis_color.value, fontsize=label_size.value)
+    ax4.tick_params(axis='y', labelcolor=smi_axis_color.value)
+# Title and X axis
+    ax1.set_xlabel('Transect Point', fontsize=label_size.value, color=label_color.value)
+    plt.title(title_text.value, fontsize=title_size.value, color=title_color.value)
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # Setting custom x-axis tick labels
+    num_points = len(df)
+    if num_points > 1:
+      ax1.set_xticks([0, num_points - 1])
+      ax1.set_xticklabels(['K', 'L'])
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+      
+# Axis Label Options (for X and Y axis labels)
+axis_label_size = widgets.IntSlider(value=12, min=8, max=20, step=1, description='Axis Label Size:')
+x_axis_label_color = widgets.ColorPicker(value='black', description='X-Axis Label Color:')
+
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# X-Axis Tick Labels
+x_start_label = widgets.Text(value='K', description='X Start Label:')
+x_end_label = widgets.Text(value='L', description='X End Label:')
+x_axis_tick_color = widgets.ColorPicker(value='black', description='X-Axis Tick Color:')
+# NEW WIDGET for Y-axis tick label size - can be reused for X if desired
+tick_label_size = widgets.IntSlider(value=10, min=6, max=18, step=1, description='Tick Label Size:')
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+# ------------------ WIDGETS ------------------
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+title_text = widgets.Text(value='Transect (T6)', description='Title:')
+title_color = widgets.ColorPicker(value='black', description='Title Color:')
+title_size = widgets.IntSlider(value=22, min=10, max=30, step=1, description='Title Size:')
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+label_color = widgets.ColorPicker(value='black', description='Axis Text Color:')
+label_size = widgets.IntSlider(value=30, min=8, max=20, step=1, description='Axis Label Size:')
+
+area_color = widgets.ColorPicker(value='lightblue', description='DSM Fill:')
+area_alpha = widgets.FloatSlider(value=0.8, min=0.1, max=1.0, step=0.1, description='Fill Alpha:')
+
+ndvi_color = widgets.ColorPicker(value='green', description='NDVI Color:')
+lst_color = widgets.ColorPicker(value='red', description='LST Color:')
+smi_color = widgets.ColorPicker(value='blue', description='SMI Color:')
+
+dsm_axis_color = widgets.ColorPicker(value='black', description='DSM Y Axis:')
+ndvi_axis_color = widgets.ColorPicker(value='green', description='NDVI Y Axis:')
+lst_axis_color = widgets.ColorPicker(value='red', description='LST Y Axis:')
+smi_axis_color = widgets.ColorPicker(value='blue', description='SMI Y Axis:')
+
+legend_loc = widgets.Dropdown(
+    options=['best', 'upper left', 'upper right', 'lower left', 'lower right', 'center'],
+    value='upper right',
+    description='Legend Loc:'
+)
+
+apply_button = widgets.Button(description="Apply", button_style='success')
+apply_button.on_click(plot_transect)
+
+ui = widgets.VBox([
+    widgets.HBox([title_text, title_color, title_size]),
+    widgets.HBox([label_color, label_size]),
+    widgets.HBox([area_color, area_alpha]),
+    widgets.HBox([ndvi_color, lst_color, smi_color]),
+    widgets.HBox([dsm_axis_color, ndvi_axis_color, lst_axis_color, smi_axis_color]),
+    legend_loc
+])
+
+plot_transect()
