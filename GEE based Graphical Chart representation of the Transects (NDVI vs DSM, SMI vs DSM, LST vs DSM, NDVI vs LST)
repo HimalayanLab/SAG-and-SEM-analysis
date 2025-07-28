@@ -1,0 +1,430 @@
+             //*******************Define the transect line***********************
+**********************************Let say you have multiple transect along the AOI (ex. Transect_1, Transect_2............Transect_N)****************************
+**********************************//Choose your area of interest (here it is AOI)//*******************************
+var geometry = AOI 
+var transect = Transect
+   //*******************Define the transect line through geospatial points***********************
+// var transect = ee.Geometry.LineString([
+//   [78.60477866194576, 31.18664548379935],
+//   [78.87669028303951, 30.878487876564062]
+// ]);
+// ********************************************************************
+// *************************Get the coordinates of the line**********************
+var coordinates = transect.coordinates();
+
+// ****************************Extract start and end points**********************
+var startPoint = ee.Feature(ee.Geometry.Point(coordinates.get(0)), {label: 'Start Point'});
+var endPoint = ee.Feature(ee.Geometry.Point(coordinates.get(-1)), {label: 'End Point'});
+
+// Add features to the map
+Map.addLayer(transect, {color: 'blue'}, 'Transect Line');
+Map.addLayer(startPoint, {color: 'green'}, 'Start Point A');
+Map.addLayer(endPoint, {color: 'red'}, 'End Point B');
+// Display the map
+Map.style().set({cursor: 'crosshair'});
+// Center the map on the transect
+Map.centerObject(transect, 10);
+
+
+// Applies scaling factors.
+function applyScaleFactors(image) {
+ // Scale and offset values for optical bands
+ var opticalBands = image.select('SR_B.').multiply(0.0000275).add(-0.2);
+ 
+ // Scale and offset values for thermal bands
+ var thermalBands = image.select('ST_B.*').multiply(0.00341802).add(149.0);
+ 
+ // Add scaled bands to the original image
+ return image.addBands(opticalBands, null, true)
+ .addBands(thermalBands, null, true);
+}
+
+
+              //*******************Cloud Mask // Bits 3 and 5 are cloud shadow and cloud, respectively.**********
+function cloudMask(image) {
+  var cloudShadowBitMask = (1 << 3);
+  var cloudsBitMask = (1 << 5);
+  // Get the pixel QA band.
+  var qa = image.select('QA_PIXEL');
+  
+              //*******************Both flags should be set to zero, indicating clear conditions.
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)
+                .and(qa.bitwiseAnd(cloudsBitMask).eq(0));
+  return image.updateMask(mask);
+}
+              //*******************vis params********************************************
+var vizParams = {
+bands: ['SR_B5', 'SR_B6', 'SR_B4'],
+min: 0,
+max: 0.3,
+gamma: [1, 0.9, 1.1]
+};
+
+var vizParams2 = {
+bands: ['SR_B4', 'SR_B3', 'SR_B2'],
+min: 0,
+max: 0.3,
+gamma: 1.4,
+};
+               //*******************LST LAYERS GENERATION*********************************
+
+               //*******************load the collection: 'Collection');*******************
+ {
+var image = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2')
+.filterDate('2020-12-01','2020-12-31')
+.filterBounds(geometry)
+.map(applyScaleFactors)
+.map(cloudMask)
+.median()
+.clip(geometry);
+}
+// print(image, 'Image');
+Map.addLayer(image, vizParams2, 'Image Collection');
+
+
+               //*******************NDVI calculation**************************************
+{
+var ndvi = image.normalizedDifference(['SR_B5', 'SR_B4'])
+                                      .rename('NDVI');
+// *******************Parameter Visualization*******************************//
+var NDVI = ndvi.clip(geometry);
+var ndviParams = {min: -1, max: 1, palette: ['blue', 'white', 'green']};
+// print(ndvi,'ndvi');
+Map.addLayer(ndvi, ndviParams, 'NDVI_ROI');
+}
+
+
+               //*******************find the min and max of NDVI*************************
+{
+var min = ee.Number(ndvi.reduceRegion({
+reducer: ee.Reducer.min(),
+geometry: geometry,
+scale: 30,
+maxPixels: 1e9
+}).values().get(0));
+print(min, 'Min_NDVI');
+var max = ee.Number(ndvi.reduceRegion({
+reducer: ee.Reducer.max(),
+geometry: geometry,
+scale: 30,
+maxPixels: 1e9
+}).values().get(0));
+print(max, 'Max_NDVI');
+}
+// Map.addLayer(min);
+// Map.addLayer(max);
+
+              //********************fractional vegetation********************************
+{
+var fv =(ndvi.subtract(min).divide(max.subtract(min))).pow(ee.Number(2)).rename('FV'); 
+// print(fv, 'fv');
+// Map.addLayer(fv);
+}
+
+              //********************Emissivity******************************************
+
+var a= ee.Number(0.004);
+var b= ee.Number(0.986);
+var EM=fv.multiply(a).add(b).rename('EM');
+var imageVisParam3 = {min: 0.9865619146722164, max:0.989699971371314};
+Map.addLayer(EM, imageVisParam3,'EM');
+
+
+
+               //*******************select thermal band 10(with brightness tempereature), no calculation 
+var thermal= image.select('ST_B10').rename ('Thermal');
+
+// *************************************************************************************
+var b10Params = {min: -100, max: 100, palette: ['blue', 'white', 'green']};
+Map.addLayer(thermal, b10Params, 'Thermal');
+
+
+
+              //********************LST in Celsius Degree bring -273.15*****************
+              //********************NB: In Kelvin don't bring -273.15*******************
+var LST = thermal.expression(
+'(Tb/(1 + (0.00115* (Tb / 1.438))*log(Em)))-273.15', {
+ 'Tb': thermal.select('Thermal'),
+'Em': EM   //Emissivity
+}).rename('LST');
+Map.addLayer(LST, {min: -100, max:100, palette: [
+"#aec3d4", "#152106", "#225129", "#369b47", 
+"#30eb5b", "#387242", "#6a2325", "#c3aa69", 
+"#b76031", "#d9903d", "#91af40", "#111149", 
+"#cdb33b", "#cc0013", "#33280d", "#d7cdcc", 
+"#f7e084", "#6f6f6f"
+ ]},'Land Surface Temperature');
+              //********************ADD Bands to main image****************************
+var lstImage = image.addBands(LST);
+print(lstImage, 'LSTImage');
+Map.addLayer(lstImage, vizParams2);
+
+              //********************Load the Digital Surface Model (DSM) for altitude information
+var dsmImage = ee.Image("CGIAR/SRTM90_V4").select('elevation');
+var DSM = dsmImage.clip(geometry);
+print(DSM, 'DSM');
+Map.addLayer(DSM);
+
+              //********************Extract LST and DSM values along the transect******
+var profile = lstImage.addBands(DSM).reduceRegion({
+  reducer: ee.Reducer.toList(),
+  geometry: transect,
+  scale: 30,
+  tileScale: 2,
+  bestEffort: true
+});
+
+              //********************Extract LST and DSM values from the profile**************************
+var lstValues = ee.List(profile.get('LST'));
+var dsmValues = ee.List(profile.get('elevation'));
+
+              //********************Ensure that both lists have the same length*****************
+var minLength = Math.min(lstValues.length(), dsmValues.length());
+
+              //********************Slice the lists to the minimum length*********************
+lstValues = lstValues.slice(0, minLength);
+dsmValues = dsmValues.slice(0, minLength);
+
+              //********************Combine the lists into a single feature collection***************
+var transectProfile = ee.FeatureCollection(
+  lstValues.zip(dsmValues).map(function (value) {
+    return ee.Feature(null, {
+      'LST': ee.List(value).get(0),
+      'DSM': ee.List(value).get(1)
+    });
+  })
+);
+
+              //********************Print the transect profile****************************
+print(transectProfile);
+
+              //********************Create a chart for the transect profile***************
+var chart = ui.Chart.feature.byFeature(transectProfile, 'system:index', ['LST', 'DSM'])
+  .setOptions({
+    title: 'Transect Profile (LST and DSM)',
+    hAxis: { title: 'Distance along the transect' },
+    vAxes: {
+      0: { title: 'LST' },
+      1: { title: 'Altitude (m)', titleTextStyle: { color: 'green' } }
+    },
+    series: {
+      0: { targetAxisIndex: 0 },
+      1: { targetAxisIndex: 1 }
+    },
+    lineWidth: 2,
+    pointSize: 3
+  });
+
+              //********************Display the chart*************************************
+print(chart);
+// Export the transect as a shapefile
+Export.table.toDrive({
+  collection: ee.FeatureCollection(ee.Feature(transect, {label: 'Transect_6'})),
+  description: 'TransectShapefile_6',
+  folder: 'PAPER_SOIL_LANDSLIDE', // Specify your folder in Google Drive
+  fileFormat: 'SHP'
+});
+// Export the LST image to Google Drive
+Export.image.toDrive({
+  image: LST,
+  description: 'LST',
+  folder: 'PAPER_SOIL_LANDSLIDE', // Specify your folder in Google Drive
+  scale: 30,  // Adjust the scale as needed
+  region: geometry,  // Set the region to export
+  maxPixels: 1e13  // Adjust the maxPixels parameter as needed
+});
+
+
+// **********************SOIL MOISTURE INDEX using the LST image (lstImage)
+
+// Calculate LSTmax and LSTmin
+var LSTMax = LST.reduceRegion({
+  reducer: ee.Reducer.max(),
+  geometry: geometry,  // Specify the region of interest
+  scale: 30  // Adjust the scale as needed
+});
+
+var LSTMin = LST.reduceRegion({
+  reducer: ee.Reducer.min(),
+  geometry: geometry,  // Specify the region of interest
+  scale: 30  // Adjust the scale as needed
+});
+
+// Extract values from the results
+var lstMaxValue = ee.Number(LSTMax.get('LST'));
+var lstMinValue = ee.Number(LSTMin.get('LST'));
+
+// Derive Soil Moisture Index (SMI)
+var SMI = lstImage.expression(
+  '(LST - LSTmin) / (LSTmax - LSTmin)', {
+    'LST': lstImage.select('LST'),  // Assuming 'LST' is the LST band in your image
+    'LSTmax': lstMaxValue,
+    'LSTmin': lstMinValue
+  }
+).rename('SMI');
+// Display the SMI layer on the map
+Map.addLayer(SMI, {min: 0, max: 1, palette: ['blue', 'white', 'green']}, 'Soil Moisture Index');
+
+var SMImin = ee.Number(SMI.reduceRegion({
+reducer: ee.Reducer.min(),
+geometry: geometry,
+scale: 30,
+maxPixels: 1e9
+}).values().get(0));
+// print(min, 'Min_smi');
+var SMImax = ee.Number(SMI.reduceRegion({
+reducer: ee.Reducer.max(),
+geometry: geometry,
+scale: 30,
+maxPixels: 1e9
+}).values().get(0));
+// print(max, 'Max_smi');
+
+var smiImage = image.addBands(SMI);
+// Print the SMI image
+// print(smiImage);
+             //********************Extract SMI and DSM values along the transect******
+var profile2 = smiImage.addBands(DSM).reduceRegion({
+  reducer: ee.Reducer.toList(),
+  geometry: transect,
+  scale: 30,
+  tileScale: 2,
+  bestEffort: true
+});
+
+
+              //********************Extract SMI and DSM values from the profile**************************
+var smiValues = ee.List(profile2.get('SMI'));
+
+              //********************Ensure that both lists have the same length*****************
+var minLength = Math.min(smiValues.length(), dsmValues.length());
+
+              //********************Slice the lists to the minimum length*********************
+smiValues = smiValues.slice(0, minLength);
+
+              //********************Combine the lists into a single feature collection***************
+var transectProfile = ee.FeatureCollection(
+  smiValues.zip(dsmValues).map(function (value) {
+    return ee.Feature(null, {
+      'SMI': ee.List(value).get(0),
+      'DSM': ee.List(value).get(1)
+    });
+  })
+);
+
+              //********************Print the transect profile****************************
+print(transectProfile);
+
+              //********************Create a chart for the transect profile***************
+var chart2 = ui.Chart.feature.byFeature(transectProfile, 'system:index', ['SMI', 'DSM'])
+  .setOptions({
+    title: 'Transect Profile (SMI and DSM)',
+    hAxis: { title: 'Distance along the transect' },
+    vAxes: {
+      0: { title: 'SMI' },
+      1: { title: 'Altitude (m)', titleTextStyle: { color: 'green' } }
+    },
+    series: {
+      0: { targetAxisIndex: 0 },
+      1: { targetAxisIndex: 1 }
+    },
+    lineWidth: 2,
+    pointSize: 3
+  });
+
+              //********************Display the chart*************************************
+print(chart2);
+//********************Extract LST and NDVI values along the transect******
+var profile3 = lstImage.addBands(ndvi).reduceRegion({
+  reducer: ee.Reducer.toList(),
+  geometry: transect,
+  scale: 30,
+  tileScale: 2,
+  bestEffort: true
+});
+
+//********************Extract LST and NDVI values from the profile**************************
+var lstValues = ee.List(profile3.get('LST'));
+var ndviValues = ee.List(profile3.get('NDVI'));
+
+//********************Ensure that both lists have the same length*****************
+var minLength = Math.min(lstValues.length(), ndviValues.length());
+
+//********************Slice the lists to the minimum length*********************
+lstValues = lstValues.slice(0, minLength);
+ndviValues = ndviValues.slice(0, minLength);
+
+//********************Combine the lists into a single feature collection***************
+var transectProfile2 = ee.FeatureCollection(
+  lstValues.zip(ndviValues).map(function (value) {
+    var lst = ee.List(value).get(0);
+    var ndvi = ee.List(value).get(1);
+
+    return ee.Feature(null, {
+      'LST': lst,
+      'NDVI': ndvi
+    });
+  })
+);
+
+//********************Print the transect profile****************************
+print(transectProfile2);
+
+//********************Create a chart for the transect profile***************
+var chart3 = ui.Chart.feature.byFeature(transectProfile2, 'system:index', ['LST', 'NDVI'])
+  .setOptions({
+    title: 'Transect Profile (LST and NDVI)',
+    hAxis: { title: 'Distance along the transect' },
+    vAxes: {
+      0: { title: 'LST' },
+      1: { title: 'NDVI', titleTextStyle: { color: 'blue' } }
+    },
+    series: {
+      0: { targetAxisIndex: 0 },
+      1: { targetAxisIndex: 1 }
+    },
+    lineWidth: 2,
+    pointSize: 3
+  });
+
+//********************Display the chart*************************************
+print(chart3);
+
+var NDVIimage = image.addBands(NDVI);
+var profile4 = NDVIimage.addBands(DSM).reduceRegion({
+  reducer: ee.Reducer.toList(),
+  geometry: transect,
+  scale: 30,
+  tileScale: 2,
+  bestEffort: true
+});
+var NDVIvalues = ee.List(profile4.get('NDVI'));
+var minLengthX = Math.min(NDVIvalues.length(),dsmValues.length());
+NDVIvalues = NDVIvalues.slice(0,minLengthX);
+var transectProfile4 = ee.FeatureCollection(
+  NDVIvalues.zip(dsmValues).map(function(value){
+    return ee.Feature(null,{
+      'ndvi': ee.List(value).get(0),
+      'DSM': ee.List(value).get(1),
+    });
+  })
+  );
+print(transectProfile4);
+var chart4 = ui.Chart.feature.byFeature(transectProfile4, 'system:index', ['ndvi', 'DSM'])
+  .setOptions({
+    title: 'Transect Profile (ndvi and DSM)',
+    hAxis: { title: 'Distance along the transect' },
+    vAxes: {
+      0: { title: 'ndvi' },
+      1: { title: 'Altitude (m)', titleTextStyle: { color: 'green' } }
+    },
+    series: {
+      0: { targetAxisIndex: 0 },
+      1: { targetAxisIndex: 1 }
+    },
+    lineWidth: 2,
+    pointSize: 3
+  });
+
+              //********************Display the chart*************************************
+print(chart4);
