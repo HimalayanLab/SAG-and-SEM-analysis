@@ -1,8 +1,6 @@
              //*******************Define the transect line***********************
-**********************************Let say you have multiple transect along the AOI (ex. Transect_1, Transect_2............Transect_N)****************************
-**********************************//Choose your area of interest (here it is AOI)//*******************************
-var geometry = AOI 
-var transect = Transect
+var geometry = table
+var transect = Transect_6
    //*******************Define the transect line through geospatial points***********************
 // var transect = ee.Geometry.LineString([
 //   [78.60477866194576, 31.18664548379935],
