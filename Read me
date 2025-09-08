@@ -1,0 +1,19 @@
+Spearman Correlation Analysis for Landslide Susceptibility Parameters
+This tutorial outlines how to perform a Spearman correlation analysis to understand the relationships between key geospatial parameters (NDVI, LST, DSM, SMI) in the Bhagirathi region. Unlike the more common Pearson correlation, the Spearman rank correlation is ideal for this type of study as it does not assume a linear relationship between variables, making it suitable for data that may have complex or non-monotonic relationships.
+
+The goal of this analysis is to determine how factors like vegetation health, surface temperature, elevation, and soil moisture are related to each other. For example, a strong negative correlation between NDVI and LST might suggest that areas with high vegetation density tend to have lower surface temperatures.
+
+Understanding the Correlation Coefficient
+The Spearman correlation coefficient, ρ (rho), ranges from -1 to +1:
+
++1 indicates a perfect monotonic positive correlation (as one variable increases, the other also increases).
+
+−1 indicates a perfect monotonic negative correlation (as one variable increases, the other decreases).
+
+0 indicates no monotonic correlation.
+
+Data Preparation
+Before running the analysis, your data should be prepared into a structured format, such as a spreadsheet or a CSV file, with each variable (NDVI, LST, DSM, SMI) as a separate column. Each row in your dataset should represent a single point or pixel in your study area.
+
+Python Script for Analysis
+Below is a Python script that will load your data, calculate the Spearman correlation matrix, and generate a visual heatmap for easy interpretation. You will need to install the pandas, scipy, and seaborn libraries if you do not have them already.
