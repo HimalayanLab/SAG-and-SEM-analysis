@@ -1,0 +1,298 @@
+from google.colab import files
+uploaded = files.upload()
+import pandas as pd
+# Load the dataset
+df = pd.read_csv("T1.csv")  # replace with your actual file name
+df.head()
+# Basic stats
+df.describe()
+
+# Correlation matrix
+df.corr()
+# Interaction terms
+df['NDVI_LST'] = df['NDVI'] * df['LST']
+df['DSM_LST'] = df['DSM'] * df['LST']
+df['DSM_NDVI'] = df['DSM'] * df['NDVI']
+import statsmodels.formula.api as smf
+
+# Linear regression with interaction terms
+model = smf.ols('SMI ~ DSM + NDVI + LST + NDVI_LST + DSM_LST + DSM_NDVI', data=df).fit()
+
+# Show model summary
+print(model.summary())
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Create NDVI groups
+df['NDVI_group'] = pd.qcut(df['NDVI'], q=2, labels=['Low NDVI', 'High NDVI'])
+
+# Plot interaction
+sns.lmplot(x='LST', y='SMI', hue='NDVI_group', data=df)
+plt.title('Interaction of NDVI and LST on SMI')
+plt.show()
+# STEP 1: Install semopy
+!pip install semopy
+
+# STEP 2: Upload the file
+from google.colab import files
+uploaded = files.upload()
+# STEP 3: Load the data
+import pandas as pd
+df = pd.read_csv("T1.csv")
+
+# Preview data
+df.head()
+# STEP 4: Create interaction terms
+df['NDVI_LST'] = df['NDVI'] * df['LST']
+df['DSM_LST'] = df['DSM'] * df['LST']
+df['DSM_NDVI'] = df['DSM'] * df['NDVI']
+# STEP 5: Visualize pairwise relationships
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+sns.pairplot(df[['DSM', 'NDVI', 'LST', 'SMI']])
+plt.suptitle('Pairwise Relationships', y=1.02)
+plt.show()
+# STEP 6: Visualize interaction: NDVI modifies LST → SMI
+df['NDVI_group'] = pd.qcut(df['NDVI'], q=2, labels=['Low NDVI', 'High NDVI'])
+
+sns.lmplot(x='LST', y='SMI', hue='NDVI_group', data=df)
+plt.title('Effect of LST on SMI by NDVI Level')
+plt.show()
+# STEP 7: Linear regression with interaction terms
+import statsmodels.formula.api as smf
+
+model = smf.ols('SMI ~ DSM + NDVI + LST + NDVI_LST + DSM_LST + DSM_NDVI', data=df).fit()
+print(model.summary())
+# STEP 8: SEM model to test causal relationships
+from semopy import Model
+
+# SEM Model: DSM affects NDVI, LST, and directly or indirectly affects SMI
+desc = """
+NDVI ~ DSM
+LST ~ DSM
+SMI ~ NDVI + LST + DSM
+"""
+
+sem_model = Model(desc)
+sem_model.fit(df)
+
+# Show path coefficients
+sem_model.inspect()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T1.csv")
+
+# Compute Spearman correlation matrix
+spearman_corr = df.corr(method='spearman')
+
+# Visualize the correlation matrix
+plt.figure(figsize=(8,6))
+sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', fmt=".2f")
+plt.title("Spearman Correlation Matrix")
+plt.show()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load the data
+df = pd.read_csv("T1.csv")
+
+# Set plot style
+sns.set(style="whitegrid")
+
+# Define correlation methods
+methods = ['pearson', 'spearman', 'kendall']
+
+# Plot all three correlation matrices
+for method in methods:
+    corr_matrix = df.corr(method=method)
+
+    plt.figure(figsize=(8,6))
+    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt=".2f")
+    plt.title(f"{method.capitalize()} Correlation Matrix")
+    plt.show()
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Pairwise scatterplot with trendlines
+sns.pairplot(df, kind="reg", diag_kind="kde", plot_kws={'line_kws':{'color':'red'}})
+plt.suptitle("Pairwise Relationships with Trendlines", y=1.02)
+plt.show()
+!pip install semopy
+
+import pandas as pd
+from semopy import Model
+from semopy.inspector import inspect
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T1.csv")
+
+# SEM model description
+model_desc = """
+LST ~ DSM
+SMI ~ LST
+NDVI ~ SMI
+"""
+
+# Fit the SEM model
+model = Model(model_desc)
+model.fit(df)
+
+# Display results
+results = model.inspect()
+print(results)
+
+# Optional: visualize the SEM path diagram
+from semopy import semplot
+
+# Generate the SEM graph without extra arguments
+semplot(model, "sem_model_diagram.png")
+
+# Display the image
+from PIL import Image
+import matplotlib.pyplot as plt
+
+img = Image.open("sem_model_diagram.png")
+plt.figure(figsize=(8, 6))
+plt.imshow(img)
+plt.axis('off')
+plt.title("SEM Path Diagram")
+plt.show()
+!pip install semopy
+
+import pandas as pd
+from semopy import Model
+from semopy.inspector import inspect
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T1.csv")
+
+# Step 1: Create inverted variables (so high = fragile)
+df["NDVI_inv"] = -df["NDVI"]
+df["SMI_inv"] = -df["SMI"]
+
+# Step 2: SEM model using positive loadings only
+model_desc = """
+Fragility =~ NDVI_inv + LST + SMI_inv
+Fragility ~ DSM
+"""
+
+# Step 3: Fit SEM
+model = Model(model_desc)
+model.fit(df)
+
+# Step 4: Print results
+print("Path Coefficients and Loadings:\n")
+print(model.inspect())
+
+print("\nModel Fit Statistics:\n")
+print(model.calc_stats())
+
+# Step 5: Plot path diagram
+from semopy import semplot
+semplot(model, "sem_fragility_fixed.png")
+
+# Step 6: Display the diagram
+from PIL import Image
+img = Image.open("sem_fragility_fixed.png")
+plt.figure(figsize=(8, 6))
+plt.imshow(img)
+plt.axis('off')
+plt.title("SEM: Fragility as Latent Variable")
+plt.show()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T1.csv")
+
+# Compute Spearman correlation matrix
+spearman_corr = df.corr(method='spearman')
+
+# Visualize the correlation matrix
+plt.figure(figsize=(8,6))
+sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', fmt=".2f")
+plt.title("T1 Spearman Correlation Matrix")
+plt.show()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T2.csv")
+
+# Compute Spearman correlation matrix
+spearman_corr = df.corr(method='spearman')
+
+# Visualize the correlation matrix
+plt.figure(figsize=(8,6))
+sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', fmt=".2f")
+plt.title("T2 Spearman Correlation Matrix")
+plt.show()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T3.csv")
+
+# Compute Spearman correlation matrix
+spearman_corr = df.corr(method='spearman')
+
+# Visualize the correlation matrix
+plt.figure(figsize=(8,6))
+sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', fmt=".2f")
+plt.title("T3 Spearman Correlation Matrix")
+plt.show()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load your data
+df = pd.read_csv("T4.csv")
+
+# Compute Spearman correlation matrix
+spearman_corr = df.corr(method='spearman')
+
+# Visualize the correlation matrix
+plt.figure(figsize=(8,6))
+sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', fmt=".2f")
+plt.title("T4 Spearman Correlation Matrix")
+plt.show()
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# File names and titles
+files = ["T1.csv", "T2.csv", "T3.csv", "T4.csv", "T5.csv", "T6.csv"]
+titles = ["T1 Spearman Correlation Matrix",
+          "T2 Spearman Correlation Matrix",
+          "T3 Spearman Correlation Matrix",
+          "T4 Spearman Correlation Matrix",
+          "T5 Spearman Correlation Matrix",
+          "T6 Spearman Correlation Matrix"]
+
+# Create subplots: 2 rows x 3 columns
+fig, axes = plt.subplots(3, 2, figsize=(12, 18))  # Adjust figure size for readability
+axes = axes.flatten()  # Flatten axes array for easy indexing
+
+# Loop through files and plot each heatmap
+for i, file in enumerate(files):
+    df = pd.read_csv(file)
+    spearman_corr = df.corr(method='spearman')
+
+    sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', fmt=".2f",
+                ax=axes[i], annot_kws={"size": 16}, cbar=(i==5))  # Show colorbar only on last plot
+    axes[i].set_title(titles[i], fontsize=16)
+    axes[i].tick_params(axis='x', labelsize=16)
+    axes[i].tick_params(axis='y', labelsize=16)
+
+plt.tight_layout()
+plt.show()
